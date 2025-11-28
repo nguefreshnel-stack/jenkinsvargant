@@ -51,15 +51,31 @@ Vagrant.configure("2") do |config|
     # Quick fix: mount the Vagrant private_key into the Jenkins container so
     # Jenkins can read it at /var/jenkins_home/.ssh/private_key. This makes the
     # key available inside the container; for production use Jenkins Credentials
-    # (recommended) instead of mounting host keys.
+    # (recommended) instead of mounting host key
     if [ -f /vagrant/.vagrant/machines/default/virtualbox/private_key ]; then
-      KEY_MOUNT="-v /vagrant/.vagrant/machines/default/virtualbox/private_key:/var/jenkins_home/.ssh/private_key:ro"
+      sudo mkdir -p /var/jenkins_home/.ssh || true
+      sudo cp /vagrant/.vagrant/machines/default/virtualbox/private_key /var/jenkins_home/.ssh/private_key
+      sudo chown 1000:1000 /var/jenkins_home/.ssh/private_key || true
+      sudo chmod 600 /var/jenkins_home/.ssh/private_key || true
+      KEY_MOUNT="-v /var/jenkins_home/.ssh/private_key:/var/jenkins_home/.ssh/private_key:ro"
     else
-      KEY_MOUNT=""
+      KEY_MOUNT=" -----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAA
+AAtzc2gtZWQyNTUxOQAAACC4IbdiXgDTMGn+qFKwLcnOy2lb7Bk2s4o1k/co
+cTX4lAAAAJBhfDtrYXw7awAAAAtzc2gtZWQyNTUxOQAAACC4IbdiXgDTMGn+
+qFKwLcnOy2lb7Bk2s4o1k/cocTX4lAAAAECfTfXdUSMBQNVCQAQWHCb2nmdR
+TQv7EmKbw13lyF/Ik7ght2JeANMwaf6oUrAtyc7LaVvsGTazijWT9yhxNfiU
+AAAAB3ZhZ3JhbnQBAgMEBQY=
+-----END OPENSSH PRIVATE KEY-----
+ "
     fi
 
+    # Run Jenkins on the VM host network so the container can reach the VM's
+    # SSH daemon on localhost:22. Inside the container, 127.0.0.1 will refer
+    # to the VM when using --network host. This avoids connectivity problems
+    # when Jenkins tries to SSH back to the Vagrant VM.
     sudo docker run -d --name jenkins \
-      -p 8080:8080 -p 50000:50000 \
+      --network host \
       -v /var/run/docker.sock:/var/run/docker.sock \
       -v jenkins_home:/var/jenkins_home \
       $KEY_MOUNT \
