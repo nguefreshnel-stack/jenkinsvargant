@@ -1,0 +1,9 @@
+:root{--bg:#fff;--fg:#222;--accent:#0b79d0}
+body{font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--fg);margin:0}
+nav{background:#f4f4f4;padding:10px;display:flex;gap:10px}
+nav a{color:var(--fg);text-decoration:none;padding:6px 10px;border-radius:4px}
+nav a.active{background:var(--accent);color:#fff}
+main{padding:20px}
+form label{display:block;margin:8px 0}
+button{background:var(--accent);color:#fff;border:none;padding:8px 12px;border-radius:4px}
+.dark{--bg:#111;--fg:#eee;--accent:#ff8c42}
