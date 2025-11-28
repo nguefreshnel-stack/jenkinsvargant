@@ -4,10 +4,10 @@ Vagrant.configure("2") do |config|
   config.vm.hostname = "ci-docker-vm"
 
   # Forward Jenkins web port to host (optional)
-  config.vm.network "forwarded_port", guest: 8080, host: 8080
+  config.vm.network "forwarded_port", guest: 8090, host: 8090
 
-  # Sync a folder for the website repo (optional)
-  config.vm.synced_folder "./site", "/home/vagrant/site", type: "virtualbox"
+  # Sync the project folder into the VM (use the repo root)
+  config.vm.synced_folder ".", "/vagrant", type: "virtualbox"
 
   # Provider-specific settings
   config.vm.provider "virtualbox" do |vb|
@@ -43,21 +43,38 @@ Vagrant.configure("2") do |config|
 
     # Pull and run Jenkins (bind Docker socket so Jenkins can run Docker)
     sudo docker pull jenkins/jenkins:lts
+
+    # Ensure a .ssh dir exists in the Jenkins home volume and set ownership
+    sudo mkdir -p /var/jenkins_home/.ssh || true
+    sudo chown -R 1000:1000 /var/jenkins_home || true
+
+    # Quick fix: mount the Vagrant private_key into the Jenkins container so
+    # Jenkins can read it at /var/jenkins_home/.ssh/private_key. This makes the
+    # key available inside the container; for production use Jenkins Credentials
+    # (recommended) instead of mounting host keys.
+    if [ -f /vagrant/.vagrant/machines/default/virtualbox/private_key ]; then
+      KEY_MOUNT="-v /vagrant/.vagrant/machines/default/virtualbox/private_key:/var/jenkins_home/.ssh/private_key:ro"
+    else
+      KEY_MOUNT=""
+    fi
+
     sudo docker run -d --name jenkins \
       -p 8080:8080 -p 50000:50000 \
       -v /var/run/docker.sock:/var/run/docker.sock \
       -v jenkins_home:/var/jenkins_home \
+      $KEY_MOUNT \
       jenkins/jenkins:lts
 
-    # Clone your website repo into synced folder if not already present
-    if [ ! -d /home/vagrant/site ]; then
-      git clone https://github.com/yourusername/your-website-repo.git /home/vagrant/site || true
-      sudo chown -R vagrant:vagrant /home/vagrant/site
+    # If the synced folder is empty on the host, optionally clone a website repo into /vagrant.
+    # If you already have your website files in the host repo, they will be available at /vagrant.
+    if [ -z "$(ls -A /vagrant)" ]; then
+      git clone https://github.com/nguefreshnel-stack/jenkinsvargant.git /vagrant || true
+      sudo chown -R vagrant:vagrant /vagrant
     fi
 
     # (Optional) start site with docker compose if repo contains docker-compose.yml
-    if [ -f /home/vagrant/site/docker-compose.yml ]; then
-      cd /home/vagrant/site
+    if [ -f /vagrant/docker-compose.yml ]; then
+      cd /vagrant
       sudo docker compose up -d
     fi
   SHELL
